@@ -1,0 +1,203 @@
+---
+title: "Final_Projects_Tweets"
+output:
+  word_document: default
+  html_notebook: default
+---
+BIS 581 - Twitter - Sentiment Analysis
+remove (clean)
+
+get some data
+change the FILE.rds to match the name of the file you downloaded
+```{r code1, echo=FALSE, message=FALSE, warning=FALSE}
+tweets <- readRDS("tweet_100k_sample.rds")
+```
+**For sentiment analysis, I took 100k   sample because It takes less processing time than 150k, 250k, 750k and  Small sample creates problem to clean data set and to handle missing values**
+
+```{r}
+my_tweets<- tweets[grep("COVID",tweets$msg,fixed = FALSE, ignore.case = TRUE), ]
+
+```
+**I selected Covid as my topic because it is On going serious global problem all over the world.**
+
+
+Pick the libraries you need, load them. Then perform any ETL operations you need
+```{r code2, echo=FALSE, message=FALSE, warning=FALSE}
+#load libraries
+library(tidytext)
+library(dplyr)
+library(tidyr)
+library(ggraph)
+library(igraph)
+```
+
+```{r}
+#Viewing structure of the data set and summary of data
+str(my_tweets)
+dim(my_tweets)
+summary(my_tweets)
+```
+
+```{r}
+#Checking head of the data set
+head(my_tweets)
+```
+
+Let's get a single chunk of text from our data to work with. 
+We'll grab a single Contact  Method from our data. Then we split it up into individual words with a function called "unnest_tokens" (break the sentence into individual words)
+
+```{r code12, echo=FALSE, message=FALSE, warning=FALSE}
+#Unnest_tokens also changes everything to lower-case.
+my_tweets_rows <- my_tweets %>% mutate (h_number = row_number())
+my_tweets_Tidy <- my_tweets_rows %>% unnest_tokens(word, msg)
+```
+
+Let's take a look at the  top 15 words from our word list 
+```{r code13, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets_Tidy %>% count(word, sort = TRUE) %>% top_n(15)
+```
+
+
+Notice that many of the words are what we would call "stop words", that is, at least for us, they don't have any sentiment. Words like "if, an, the" so let's remove them, then we'll look at the list again:
+
+```{r code14, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets_Tidy <- my_tweets_Tidy %>% anti_join(stop_words)
+my_tweets_Tidy %>% count(word, sort = TRUE)
+```
+
+
+Again, let's take a look at the word list we now have after removing the stop words (this is just the top 15):
+0
+```{r code15, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets_Tidy %>% count(word, sort = TRUE) %>% top_n(15)
+```
+
+Let's look at the sentiment of our word list. First we'll start with a very simple use of the lexicons. Lets see how  the various lexicon views each word. 
+```{r}
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("nrc"))
+```
+
+
+```{r code17, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("afinn"))
+```
+
+```{r code18, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("bing"))
+```
+
+
+**QUESTION 1.top 15 meaningful words**
+
+```{r}
+## "nrc"
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("nrc"))%>% count(word, sort = TRUE) %>% top_n(15)
+```
+
+```{r}
+## Using "afinn"
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("afinn"))%>% count(word, sort = TRUE) %>% top_n(15)
+```
+
+
+```{r}
+## Using "bing"
+my_tweets_Tidy %>% select(word) %>% inner_join(get_sentiments("bing"))%>% count(word, sort = TRUE) %>% top_n(15)
+```
+
+**Question 2. WORD CLOUD**
+
+This code will put all of the single column into a new data.frame. It also removes all rows where improvement is empty.
+
+```{r code 22, echo=FALSE, message=FALSE, warning=FALSE}
+library(wordcloud)
+tweets_WordCount <- my_tweets_Tidy %>% count(word, sort=TRUE) %>% top_n(15) %>% mutate(word = reorder(word,n)) 
+ggplot(data=tweets_WordCount, aes(x=word, y=n)) +
+    geom_bar(stat="identity") + coord_flip() + labs(x="Word",y="word Count",title="Word Frequency")
+```
+
+
+**Let's make a word cloud:**
+```{r code23, echo=FALSE, message=FALSE, warning=FALSE}
+tweets_wordcloud <- my_tweets_Tidy %>% count(word, sort=TRUE)  %>% top_n(300)
+wordcloud(tweets_wordcloud$word, tweets_wordcloud$n, random.order=FALSE, colors=brewer.pal(8,"Dark2"))
+```
+**I organized tweets into word clouds to analyze what words have been frequently used by the twitter users and also what emotions are behind these words. As it can be seen from the above Figure, words like covid,rt, https, covid 19, vaccine, Virus, emergency, died, quarantine, people, restrictions  were very frequently used by the users.**
+
+**Question 3.How many of the tweets are retweets?**
+
+```{r code24, echo=FALSE, message=FALSE, warning=FALSE}
+##The number of tweets that are retweets
+head(tweets_WordCount)
+```
+
+**The number of tweets that are retweets are 6. They are covid, rt, https, tco, covid 19 and people.**
+
+
+**Question 4. Create a network diagram based on bi-grams**
+
+We can usE N-Grams to create the network diagram based on bi-grams. Bi-grams means sequences of words, we can do is grouping 2 words other than just looking at individual words.  
+```{r code25, echo=FALSE, message=FALSE, warning=FALSE}
+tweetsBigram <- my_tweets_rows %>% unnest_tokens(bigram, msg, token = "ngrams", n = 2)
+```
+
+Let's look at which bi-gram shows up most often (top 20)
+```{r code26, echo=FALSE, message=FALSE, warning=FALSE}
+tweetsBigram %>% count(bigram,sort=TRUE) %>% top_n(20)
+```
+
+
+**Getting rid of Stop word**
+
+```{r code27, echo=FALSE, message=FALSE, warning=FALSE}
+tweetsBigramCount <- tweetsBigram %>% separate(bigram, c("word1", "word2"), sep = " ") %>%
+        filter(!word1 %in% stop_words$word,
+               !word2 %in% stop_words$word) %>%
+        count(word1, word2, sort = TRUE)
+```
+
+
+**Plotting the network diagram based on bi-grams:**
+```{r code28, echo=FALSE, message=FALSE, warning=FALSE}
+tweetsBigramCount %>%  filter(n>=100) %>%
+  graph_from_data_frame() %>% ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n)) +
+  geom_node_point(color = "darkslategray4", size = 3) +
+  geom_node_text(aes(label = name), vjust = 1.8, size = 3) +
+  labs(title = "Word Network: tweets",
+       subtitle = "Text mining ",
+       x = "", y = "") +
+  theme_void()
+```
+
+
+
+```{r code29, echo=FALSE, message=FALSE, warning=FALSE}
+custom_stop_list <- tibble(word = c(" PUT THE STOP WORDS HERE "))
+tweets_clean <- my_tweets_Tidy %>% anti_join(custom_stop_list)
+```
+**I tried to remove the garbage words: We made a custom list of "stop words" to remove and then used an anti-join to remove them.**
+
+```{r code30, echo=FALSE, message=FALSE, warning=FALSE}
+tweetsWordCount <- tweets_clean %>% count(word, sort=TRUE) %>% top_n(15) %>% mutate(word = reorder(word,n)) 
+ggplot(data=tweetsWordCount, aes(x=word, y=n)) +
+    geom_bar(stat="identity") + coord_flip() + labs(x="Word",y="word Count",title="Word Frequency")
+```
+
+
+**QUESTION 5. The top 10 users based on count of tweets**
+
+```{r code31, echo=FALSE, message=FALSE, warning=FALSE}
+my_tweets %>% group_by(displayname) %>% count(tweet_id) %>% summarise(Top_Users=sum(n)) %>% top_n(10)%>%arrange(desc(Top_Users ))
+
+```
+
+**The top 10 users based on count of tweets are given above.**
+
+
+
+**assuming you work for the company/organization for which you captured these tweets, what can you infer from the data? If the company was asking you if they should change or create a new marketing campaign, what would you tell them and why?**
+
+We can infer from these tweets, covid is the most frequently used data. It has not any statistical significance because this analysis is based on sentiment. But it is a good communication channel for understanding both public concern and public awareness about covid19. If the company is related to vaccination and sentiment is positive, that means the vaccine is easy to get, working well against covid and people are satisfied. If the sentiment is negative, company should ensure that people get vaccines by increasing amount of vaccine. 
+
+
